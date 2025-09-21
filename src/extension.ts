@@ -180,7 +180,10 @@ export async function activate(context: vscode.ExtensionContext) {
   const syncCmd = vscode.commands.registerCommand('dev-prompts.syncPrompts', async () => {
     await importPrompts(true);
   });
-  context.subscriptions.push(importCmd, syncCmd);
+  const searchCmd = vscode.commands.registerCommand('dev-prompts.searchAndImport', async () => {
+    await searchAndImportPrompts();
+  });
+  context.subscriptions.push(importCmd, syncCmd, searchCmd);
 
   const config = vscode.workspace.getConfiguration();
   const auto = config.get<boolean>('devPrompts.autoImportOnActivate', false);
@@ -190,4 +193,166 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {}
+
+type RepoEntry = { path: string; type: 'file' | 'dir' };
+
+async function fetchRepoTreePaths(token?: string): Promise<RepoEntry[]> {
+  // try GitHub Tree API first
+  const treeUrl = 'https://api.github.com/repos/finnjclancy/dev-prompts/git/trees/main?recursive=1';
+  try {
+    const json = await httpGetJson(treeUrl, token);
+    if (json && Array.isArray(json.tree)) {
+      const results: RepoEntry[] = [];
+      for (const node of json.tree) {
+        if (typeof node.path !== 'string' || typeof node.type !== 'string') continue;
+        const normalized = node.path.replace(/\\/g, '/');
+        if (!normalized.startsWith('prompts/')) continue;
+        const isDir = node.type === 'tree';
+        const isFile = node.type === 'blob';
+        if (isDir) results.push({ path: normalized, type: 'dir' });
+        if (isFile) results.push({ path: normalized, type: 'file' });
+      }
+      return results;
+    }
+  } catch {
+    // fall through to zip fallback
+  }
+
+  // fallback: download zip and enumerate entries
+  const tmpZip = path.join(os.tmpdir(), `dev-prompts-list-${Date.now()}.zip`);
+  await downloadZip(tmpZip, token);
+  const directory = await unzipper.Open.file(tmpZip);
+  const entries: RepoEntry[] = [];
+  for (const f of directory.files) {
+    const p = f.path.replace(/\\/g, '/');
+    if (!p.startsWith(`${ZIP_ROOT_DIR}/prompts/`)) continue;
+    if (p.endsWith('/')) {
+      entries.push({ path: p.substring(ZIP_ROOT_DIR.length + 1), type: 'dir' });
+    } else {
+      entries.push({ path: p.substring(ZIP_ROOT_DIR.length + 1), type: 'file' });
+    }
+  }
+  return entries;
+}
+
+async function httpGetJson(url: string, token?: string): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const headers: Record<string, string> = {
+      'User-Agent': 'dev-prompts-extension',
+      'Accept': 'application/vnd.github+json'
+    };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    https.get(url, { headers }, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)); } catch (e) { reject(e); }
+      });
+    }).on('error', reject);
+  });
+}
+
+function toQuickPickItems(entries: RepoEntry[], query?: string): vscode.QuickPickItem[] & { _path?: string; _type?: 'file' | 'dir' }[] {
+  const filtered = entries.filter((e) => {
+    if (!query) return true;
+    const q = query.toLowerCase();
+    return e.path.toLowerCase().includes(q);
+  });
+  filtered.sort((a, b) => {
+    if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
+    return a.path.localeCompare(b.path);
+  });
+  return filtered.map((e) => ({
+    label: e.type === 'dir' ? `$(folder) ${e.path}` : `$(file) ${e.path}`,
+    description: e.type === 'dir' ? 'directory' : 'file',
+    _path: e.path,
+    _type: e.type
+  }));
+}
+
+async function searchAndImportPrompts(): Promise<void> {
+  if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
+    vscode.window.showErrorMessage('Dev Prompts: no workspace folder is open.');
+    return;
+  }
+  const token = process.env.GITHUB_TOKEN;
+  const entries = await fetchRepoTreePaths(token);
+  if (entries.length === 0) {
+    vscode.window.showWarningMessage('Dev Prompts: no prompts found to search.');
+    return;
+  }
+
+  const qp = vscode.window.createQuickPick<vscode.QuickPickItem & { _path?: string; _type?: 'file' | 'dir' }>();
+  qp.title = 'Dev Prompts: search and import';
+  qp.canSelectMany = true;
+  qp.placeholder = 'type to search prompts (folders and files)';
+  qp.items = toQuickPickItems(entries);
+  qp.matchOnDescription = true;
+  qp.matchOnDetail = true;
+
+  qp.onDidChangeValue((value) => {
+    qp.items = toQuickPickItems(entries, value);
+  });
+
+  const selection = await new Promise<(vscode.QuickPickItem & { _path?: string; _type?: 'file' | 'dir' })[] | undefined>((resolve) => {
+    qp.onDidAccept(() => {
+      resolve(qp.selectedItems as any);
+      qp.hide();
+    });
+    qp.onDidHide(() => resolve(undefined));
+    qp.show();
+  });
+
+  if (!selection || selection.length === 0) return;
+
+  await importSelection(selection);
+}
+
+async function importSelection(items: (vscode.QuickPickItem & { _path?: string; _type?: 'file' | 'dir' })[]) {
+  const workspaceRoot = vscode.workspace.workspaceFolders![0].uri.fsPath;
+  const destDir = path.join(workspaceRoot, 'prompts');
+  await fs.promises.mkdir(destDir, { recursive: true });
+
+  const tmpZip = path.join(os.tmpdir(), `dev-prompts-${Date.now()}.zip`);
+  const token = process.env.GITHUB_TOKEN;
+  await downloadZip(tmpZip, token);
+  const zipDir = await unzipper.Open.file(tmpZip);
+
+  // collect all entries to write
+  const fileWrites: { rel: string; entry: any }[] = [];
+  for (const zEntry of zipDir.files) {
+    const p = zEntry.path.replace(/\\/g, '/');
+    if (!p.startsWith(`${ZIP_ROOT_DIR}/prompts/`) || p.endsWith('/')) continue;
+    const rel = p.substring(`${ZIP_ROOT_DIR}/`.length); // prompts/.../file
+    const include = items.some((it) => {
+      const target = it._path!; // prompts/... or prompts/.../file
+      if (it._type === 'dir') {
+        return rel.startsWith(target + '/');
+      }
+      return rel === target;
+    });
+    if (include) fileWrites.push({ rel: rel.substring('prompts/'.length), entry: zEntry });
+  }
+
+  const files = fileWrites.map((f) => f.rel);
+  const { choice, map } = await handleConflicts(destDir, files);
+
+  let written = 0;
+  for (const f of fileWrites) {
+    const mappedRel = map.get(f.rel) ?? f.rel;
+    const outPath = path.join(destDir, mappedRel);
+    const exists = await fileExists(path.join(destDir, f.rel));
+    if (exists && choice === 'skip') continue;
+    await fs.promises.mkdir(path.dirname(outPath), { recursive: true });
+    await new Promise<void>((resolve, reject) => {
+      f.entry.stream()
+        .pipe(fs.createWriteStream(outPath))
+        .on('finish', () => resolve())
+        .on('error', (err: unknown) => reject(err));
+    });
+    written += 1;
+  }
+
+  vscode.window.showInformationMessage(`Dev Prompts: imported ${written} item(s).`);
+}
 

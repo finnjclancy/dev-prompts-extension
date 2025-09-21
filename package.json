@@ -15,6 +15,7 @@
   "activationEvents": [
     "onCommand:dev-prompts.importPrompts",
     "onCommand:dev-prompts.syncPrompts",
+    "onCommand:dev-prompts.searchAndImport",
     "onStartupFinished"
   ],
   "main": "./dist/extension.js",
@@ -27,6 +28,10 @@
       {
         "command": "dev-prompts.syncPrompts",
         "title": "Dev Prompts: Sync Prompts"
+      },
+      {
+        "command": "dev-prompts.searchAndImport",
+        "title": "Dev Prompts: Search and Import"
       }
     ],
     "configuration": {
