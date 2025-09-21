@@ -1,0 +1,65 @@
+{
+  "name": "dev-prompts",
+  "displayName": "Dev Prompts",
+  "publisher": "finnjclancy",
+  "version": "0.1.0",
+  "description": "import shared developer prompts from finnjclancy/dev-prompts into your workspace",
+  "license": "MIT",
+  "type": "commonjs",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:dev-prompts.importPrompts",
+    "onCommand:dev-prompts.syncPrompts",
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "dev-prompts.importPrompts",
+        "title": "Dev Prompts: Import Prompts"
+      },
+      {
+        "command": "dev-prompts.syncPrompts",
+        "title": "Dev Prompts: Sync Prompts"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Dev Prompts",
+      "properties": {
+        "devPrompts.autoImportOnActivate": {
+          "type": "boolean",
+          "default": false,
+          "description": "if enabled, automatically import prompts on vscode startup"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "watch": "tsc -w -p .",
+    "prepublishOnly": "npm run compile"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/finnjclancy/dev-prompts-extension.git"
+  },
+  "bugs": {
+    "url": "https://github.com/finnjclancy/dev-prompts-extension/issues"
+  },
+  "homepage": "https://github.com/finnjclancy/dev-prompts-extension#readme",
+  "dependencies": {
+    "unzipper": "^0.12.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "@types/vscode": "^1.104.0",
+    "typescript": "^5.9.2"
+  }
+}
