@@ -1,17 +1,20 @@
 {
   "name": "dev-prompts",
   "displayName": "Dev Prompts",
-  "publisher": "finnjclancy",
+  "publisher": "finnclancy",
   "version": "0.1.0",
   "description": "import shared developer prompts from finnjclancy/dev-prompts into your workspace",
   "license": "MIT",
   "type": "commonjs",
   "engines": {
-    "vscode": "^1.80.0"
+    "vscode": "^1.104.0"
   },
   "categories": [
     "Other"
   ],
+  "icon": "images/image.png",
+  "galleryBanner": { "color": "#0ea5e9", "theme": "dark" },
+  "keywords": ["prompts", "llm", "ai", "templates", "developer prompts"],
   "activationEvents": [
     "onCommand:dev-prompts.importPrompts",
     "onCommand:dev-prompts.syncPrompts",
@@ -49,7 +52,14 @@
   "scripts": {
     "compile": "tsc -p .",
     "watch": "tsc -w -p .",
-    "prepublishOnly": "npm run compile"
+    "prepublishOnly": "npm run compile",
+    "package": "vsce package || @vscode/vsce package",
+    "publish:marketplace": "vsce publish || @vscode/vsce publish",
+    "publish:patch": "vsce publish patch || @vscode/vsce publish patch",
+    "publish:minor": "vsce publish minor || @vscode/vsce publish minor",
+    "publish:major": "vsce publish major || @vscode/vsce publish major",
+    "package:ovsx": "ovsx package",
+    "publish:openvsx": "ovsx publish"
   },
   "repository": {
     "type": "git",
@@ -65,6 +75,9 @@
   "devDependencies": {
     "@types/node": "^24.5.2",
     "@types/vscode": "^1.104.0",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "ovsx": "^0.9.2",
+    "@vscode/vsce": "^3.1.0",
+    "vsce": "^2.15.0"
   }
 }

@@ -15,6 +15,15 @@ bring a shared set of developer prompts into your project with one command. it p
 
 - dev prompts: import prompts – fetch and write `./prompts`
 - dev prompts: sync prompts – re-fetch and apply the same rules
+- dev prompts: search and import – fuzzy‑search folders/files under `prompts/` and import selected items (multi‑select)
+
+### how search works
+
+- searches both folder names and file names (and their paths) inside `finnjclancy/dev-prompts@main/prompts/`
+- results show paths like `prompts/languages/javascript` (directories first, then files)
+- you can multi‑select any mix of folders and files
+- importing a folder brings in the whole subtree; importing a file brings just that file
+- conflict handling uses your one‑time choice (overwrite / skip / rename → applies to all)
 
 ## optional setting
 
@@ -30,6 +39,7 @@ bring a shared set of developer prompts into your project with one command. it p
 
 then, from the command palette (cmd/ctrl+shift+p):
 - run “dev prompts: import prompts” to fetch the latest
+- or try “dev prompts: search and import”, type something like `javascript`, multi‑select matches, hit enter
 
 ## notes
 
