@@ -16,9 +16,6 @@
   "galleryBanner": { "color": "#0ea5e9", "theme": "dark" },
   "keywords": ["prompts", "llm", "ai", "templates", "developer prompts"],
   "activationEvents": [
-    "onCommand:dev-prompts.importPrompts",
-    "onCommand:dev-prompts.syncPrompts",
-    "onCommand:dev-prompts.searchAndImport",
     "onStartupFinished"
   ],
   "main": "./dist/extension.js",
